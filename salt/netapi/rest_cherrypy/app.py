@@ -1181,6 +1181,11 @@ class LowDataAdapter(object):
                 except (TypeError, ValueError):
                     raise cherrypy.HTTPError(401, 'Invalid token')
 
+            if 'username' in chunk:
+                username = chunk['username']
+                if not salt_api_acl_tool(username, cherrypy.request):
+                    raise cherrypy.HTTPError(401)
+
             if client:
                 chunk['client'] = client
 
