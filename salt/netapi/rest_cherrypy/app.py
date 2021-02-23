@@ -1181,6 +1181,12 @@ class LowDataAdapter(object):
                 except (TypeError, ValueError):
                     raise cherrypy.HTTPError(401, 'Invalid token')
 
+            if 'tgt_type' in chunk:
+                if chunk['tgt_type'] == 'ipcidr':
+                    raise cherrypy.HTTPError(401, 'ipcidr is not supported now')
+                if chunk['tgt_type'] == 'compound' and 'S@' in chunk['tgt']:
+                    raise cherrypy.HTTPError(401, 'ipcidr is not supported now')
+
             if 'username' in chunk:
                 username = chunk['username']
                 if not salt_api_acl_tool(username, cherrypy.request):
