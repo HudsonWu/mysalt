@@ -1098,6 +1098,45 @@ def lowdata_fmt():
         cherrypy.serving.request.lowstate = data
 
 
+def audit_log():
+    src_ip = cherrypy.request.remote.ip
+    req_path = cherrypy.request.path_info
+    req_meth = cherrypy.request.method
+
+    user = "-"
+    data = "-"
+    req_token = cherrypy.session.get("token", None)
+    if req_token:
+        opts = cherrypy.config["saltopts"]
+        resolver = salt.auth.Resolver(opts)
+        token = resolver.get_token(req_token)
+        user = token["name"]
+
+    if req_meth.upper() == "POST":
+        import copy
+        data = copy.deepcopy(cherrypy.request.unserialized_data)
+        if data:
+            if isinstance(data, dict):
+                if user == "-" and "username" in data:
+                    user = data["username"]
+                if "password" in data:
+                    data["password"] = "*****"
+                if "token" in data:
+                    data["token"] = "*****"
+            elif isinstance(data, list):
+                for value in data:
+                    if user == "-" and "username" in value:
+                        user = value["username"]
+                    if "password" in value:
+                        value["password"] = "*****"
+                    if "token" in value:
+                        value["token"] = "*****"
+    else:
+        data = cherrypy.request.params
+    
+    logger.info('{0} {1} "{2} {3}" {4}'.format(src_ip, user, req_meth, req_path, data))
+
+
 tools_config = {
     "on_start_resource": [
         ("html_override", html_override_tool),
@@ -1109,6 +1148,7 @@ tools_config = {
         ("hypermedia_in", hypermedia_in),
     ],
     "before_handler": [
+        ("audit_log", audit_log),
         ("lowdata_fmt", lowdata_fmt),
         ("hypermedia_out", hypermedia_out),
         ("salt_ip_verify", salt_ip_verify_tool),
@@ -1142,6 +1182,7 @@ class LowDataAdapter:
         "tools.hypermedia_out.on": True,
         "tools.hypermedia_in.on": True,
         "tools.lowdata_fmt.on": True,
+        "tools.audit_log.on": True,
         "tools.salt_ip_verify.on": True,
     }
 
@@ -1940,7 +1981,7 @@ class Logout(LowDataAdapter):
 
     _cp_config = dict(
         LowDataAdapter._cp_config,
-        **{"tools.salt_auth.on": True, "tools.lowdata_fmt.on": False}
+        **{"tools.salt_auth.on": True, "tools.lowdata_fmt.on": False, "tools.audit_log.on": True}
     )
 
     def POST(self):  # pylint: disable=arguments-differ
@@ -2644,6 +2685,7 @@ class Webhook:
             "tools.lowdata_fmt.on": True,
             # Auth can be overridden in __init__().
             "tools.salt_auth.on": True,
+            "tools.audit_log.on": True,
         }
     )
 
